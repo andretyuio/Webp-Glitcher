@@ -14,7 +14,7 @@ type AnimationSettings = (BlurSettings | SliceShiftSettings | PixelateSettings |
 const ButtonGroup = ({ label, options, selected, onChange }: { label: string, options: string[], selected: string, onChange: (value: string) => void }) => (
   <div>
     <span className="text-sm font-medium text-gray-300">{label}</span>
-    <div className="grid grid-cols-3 gap-2 mt-2">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
       {options.map(opt => (
         <button key={opt} onClick={() => onChange(opt)} className={`px-2 py-1 text-sm rounded capitalize ${selected === opt ? 'bg-cyan-500 text-white' : 'bg-gray-600 hover:bg-gray-500'}`}>
           {opt}
@@ -31,7 +31,7 @@ const AnimationControls: React.FC<{
     handleValueChange: (filter: FilterKey, property: string, value: number | string) => void;
     animationTypes?: string[];
     showAmountControls?: boolean;
-}> = ({ filterKey, settings, handleSubToggle, handleValueChange, animationTypes = ['pulse', 'flicker', 'sweep'], showAmountControls = true }) => {
+}> = ({ filterKey, settings, handleSubToggle, handleValueChange, animationTypes = ['wave', 'pulse', 'flicker', 'sweep'], showAmountControls = true }) => {
     return (
         <>
             <label className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300">
@@ -45,7 +45,7 @@ const AnimationControls: React.FC<{
                     {showAmountControls && (
                         <>
                             <ControlSlider label="Anim Min Amount (%)" value={(settings as any).animationMinAmount} onChange={val => handleValueChange(filterKey, 'animationMinAmount', val)} min={0} max={100} step={5} />
-                            <ControlSlider label="Anim Max Amount (%)" value={(settings as any).animationMaxAmount} onChange={val => handleValueChange(filterKey, 'animationMaxAmount', val)} min={100} max={300} step={5} />
+                            <ControlSlider label="Anim Max Amount (%)" value={(settings as any).animationMaxAmount} onChange={val => handleValueChange(filterKey, 'animationMaxAmount', val)} min={(settings as any).animationMinAmount} max={300} step={5} />
                         </>
                     )}
                 </>
@@ -72,12 +72,27 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
   const handleValueChange = (filter: FilterKey, property: string, value: number | string) => {
     onChange(prev => {
         const newSettings = { ...prev };
-        (newSettings[filter] as any)[property] = value;
+        const filterSettings = (newSettings[filter] as any);
+        filterSettings[property] = value;
         
         // Handle blur lock
         if (filter === 'blur' && newSettings.blur.isLocked) {
             if (property === 'amountX') newSettings.blur.amountY = value as number;
             if (property === 'amountY') newSettings.blur.amountX = value as number;
+        }
+        
+        // Handle anim min/max constraints
+        if (typeof filterSettings.animationMinAmount === 'number' && typeof filterSettings.animationMaxAmount === 'number') {
+            if (property === 'animationMinAmount') {
+                if (value > filterSettings.animationMaxAmount) {
+                    filterSettings.animationMaxAmount = value as number;
+                }
+            }
+            if (property === 'animationMaxAmount') {
+                if (value < filterSettings.animationMinAmount) {
+                    filterSettings.animationMinAmount = value as number;
+                }
+            }
         }
 
         return newSettings;
@@ -122,7 +137,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
           <div className="mt-4 space-y-4">
              <div className='border-l-2 border-cyan-500 pl-3 space-y-3'>
                  <p className='font-bold text-cyan-400'>Animation</p>
-                <AnimationControls filterKey='channelShift' settings={settings.channelShift} handleSubToggle={handleSubToggle} handleValueChange={handleValueChange} animationTypes={['wave', 'pulse', 'flicker', 'sweep']} />
+                <AnimationControls filterKey='channelShift' settings={settings.channelShift} handleSubToggle={handleSubToggle} handleValueChange={handleValueChange} />
             </div>
             {/* Red Channel */}
             <div className='border-l-2 border-red-500 pl-3 space-y-3'>
@@ -156,10 +171,11 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
           <div className="mt-4 space-y-3">
             <ControlSlider label="Banding Opacity" value={settings.crt.bandingOpacity} onChange={val => handleValueChange('crt', 'bandingOpacity', val)} min={0} max={1} step={0.05} />
             <ControlSlider label="Banding Density" value={settings.crt.bandingDensity} onChange={val => handleValueChange('crt', 'bandingDensity', val)} min={1} max={50} step={0.5} />
-            <ControlSlider label="Banding Sharpness" value={settings.crt.bandingSharpness} onChange={val => handleValueChange('crt', 'bandingSharpness', val)} min={1} max={100} step={1} />
+            <ControlSlider label="Banding Sharpness" value={settings.crt.bandingSharpness} onChange={val => handleValueChange('crt', 'bandingSharpness', val)} min={0} max={1} step={0.05} />
             <ControlSlider label="Scanline Opacity" value={settings.crt.scanlineOpacity} onChange={val => handleValueChange('crt', 'scanlineOpacity', val)} min={0} max={1} step={0.05} />
             <ControlSlider label="Distortion" value={settings.crt.barrelDistortion} onChange={val => handleValueChange('crt', 'barrelDistortion', val)} min={0} max={50} step={1} />
             <ControlSlider label="Vignette" value={settings.crt.vignetteOpacity} onChange={val => handleValueChange('crt', 'vignetteOpacity', val)} min={0} max={1} step={0.05} />
+            <ControlSlider label="Hue" value={settings.crt.hue} onChange={val => handleValueChange('crt', 'hue', val)} min={0} max={360} step={1} />
              <div className='border-l-2 border-cyan-500 pl-3 space-y-3 mt-4'>
                 <label className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300">
                     <span>Animate Banding</span>
@@ -167,8 +183,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
                 </label>
                  {settings.crt.animate && (
                     <>
-                      <ControlSlider label="Banding Speed" value={settings.crt.animationSpeed} onChange={val => handleValueChange('crt', 'animationSpeed', val)} min={0.1} max={5} step={0.1} />
-                      <ControlSlider label="Banding Drift" value={settings.crt.bandingDrift} onChange={val => handleValueChange('crt', 'bandingDrift', val)} min={0} max={150} step={1} />
+                        <ControlSlider label="Animation Speed" value={settings.crt.animationSpeed} onChange={val => handleValueChange('crt', 'animationSpeed', val)} min={0.1} max={5} step={0.1} />
+                        <ControlSlider label="Banding Drift" value={settings.crt.bandingDrift} onChange={val => handleValueChange('crt', 'bandingDrift', val)} min={0.01} max={5} step={0.1} />
                     </>
                  )}
             </div>
@@ -184,14 +200,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
         </label>
         {settings.noise.active && (
           <div className="mt-4 space-y-4">
-            <ControlSlider label="Scale" value={settings.noise.scale} onChange={val => handleValueChange('noise', 'scale', val)} min={0.1} max={3} step={0.1} />
+            <ControlSlider label="Scale" value={settings.noise.scale} onChange={val => handleValueChange('noise', 'scale', val)} min={0.5} max={3} step={0.1} />
             <ControlSlider label="Opacity" value={settings.noise.opacity} onChange={val => handleValueChange('noise', 'opacity', val)} min={0} max={1} step={0.05} />
-            <div className='border-l-2 border-cyan-500 pl-3 space-y-3'>
-                <label className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300">
-                    <span>Animate</span>
-                    <input type="checkbox" checked={settings.noise.animate} onChange={() => handleSubToggle('noise', 'animate')} className="toggle-checkbox-sm" />
-                </label>
-            </div>
             <ButtonGroup label="Type" options={['fractalNoise', 'turbulence', 'grain']} selected={settings.noise.type} onChange={val => handleValueChange('noise', 'type', val as NoiseSettings['type'])} />
             <ButtonGroup label="Blend Mode" options={['overlay', 'screen', 'difference']} selected={settings.noise.blendMode} onChange={val => handleValueChange('noise', 'blendMode', val as NoiseSettings['blendMode'])} />
           </div>
@@ -238,8 +248,10 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
         {settings.sliceShift.active && (
           <div className="mt-4 space-y-3">
              <ButtonGroup label="Direction" options={['horizontal', 'vertical']} selected={settings.sliceShift.direction} onChange={val => handleValueChange('sliceShift', 'direction', val as SliceShiftSettings['direction'])} />
-            <ControlSlider label="Slice Height" value={settings.sliceShift.sliceHeight} onChange={val => handleValueChange('sliceShift', 'sliceHeight', val)} min={1} max={100} step={1} />
-            <ControlSlider label="Offset Amount" value={settings.sliceShift.offsetAmount} onChange={val => handleValueChange('sliceShift', 'offsetAmount', val)} min={0} max={200} step={1} />
+            <ControlSlider label="Density" value={settings.sliceShift.density} onChange={val => handleValueChange('sliceShift', 'density', val)} min={1} max={100} step={1} />
+            <ControlSlider label="Opacity" value={settings.sliceShift.opacity} onChange={val => handleValueChange('sliceShift', 'opacity', val)} min={0} max={1} step={0.05} />
+            <ControlSlider label="Offset X" value={settings.sliceShift.offsetX} onChange={val => handleValueChange('sliceShift', 'offsetX', val)} min={-200} max={200} step={1} />
+            <ControlSlider label="Offset Y" value={settings.sliceShift.offsetY} onChange={val => handleValueChange('sliceShift', 'offsetY', val)} min={-200} max={200} step={1} />
              <AnimationControls filterKey='sliceShift' settings={settings.sliceShift} handleSubToggle={handleSubToggle} handleValueChange={handleValueChange} />
           </div>
         )}

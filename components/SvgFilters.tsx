@@ -10,6 +10,8 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
         const minVal = baseVal * (minPct / 100);
         const maxVal = baseVal * (maxPct / 100);
         switch (type) {
+            case 'wave':
+                return `${baseVal};${maxVal};${baseVal};${minVal};${baseVal}`;
             case 'sweep':
                 return `${minVal};${maxVal};${minVal}`;
             case 'flicker':
@@ -59,6 +61,10 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
         const maxVal = getStdDev(maxX, maxY);
 
         switch (type) {
+            case 'wave':
+                const midVal1 = getStdDev((baseX + maxX) / 2, (baseY + maxY) / 2);
+                const midVal2 = getStdDev((baseX + minX) / 2, (baseY + minY) / 2);
+                return `${baseVal};${midVal1};${maxVal};${midVal1};${baseVal};${midVal2};${minVal};${midVal2};${baseVal}`;
             case 'sweep':
                 return `${minVal};${maxVal};${minVal}`;
             case 'flicker':
@@ -89,8 +95,11 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
     }
     
     const getSliceShiftAnimationValues = () => {
-        const { offsetAmount, animationMinAmount, animationMaxAmount, animationType } = filters.sliceShift;
-        return getAnimationValues(offsetAmount, animationMinAmount, animationMaxAmount, animationType);
+        const { offsetX, offsetY, animationMinAmount, animationMaxAmount, animationType } = filters.sliceShift;
+        return {
+            dxValues: getAnimationValues(offsetX, animationMinAmount, animationMaxAmount, animationType),
+            dyValues: getAnimationValues(offsetY, animationMinAmount, animationMaxAmount, animationType),
+        }
     }
 
     const getChannelShiftOffsets = (offset: number, angle: number) => {
@@ -118,6 +127,7 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
     const rAnim = getChannelShiftAnimateValues(filters.channelShift.rOffset, filters.channelShift.rAngle);
     const gAnim = getChannelShiftAnimateValues(filters.channelShift.gOffset, filters.channelShift.gAngle);
     const bAnim = getChannelShiftAnimateValues(filters.channelShift.bOffset, filters.channelShift.bAngle);
+    const sliceShiftAnim = getSliceShiftAnimationValues();
 
     const animatedNoiseSeedValues = useMemo(() => {
         return Array.from({length: 10}, () => Math.floor(Math.random() * 500)).join(';');
@@ -125,23 +135,12 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
     
     const noiseBaseFrequency = useMemo(() => {
         const { type, scale } = filters.noise;
-        // A larger scale value should result in a larger, less frequent noise pattern (lower baseFrequency).
-        // The value is inverted to achieve this intuitive mapping.
-        const baseFreqValue = 0.5 / (scale || 1); // Avoid division by zero
+        const baseFreqValue = 1 / (scale || 1);
         if (type === 'grain') {
-          // Grain needs a higher base frequency, so we add to a baseline.
-          return 0.5 + baseFreqValue * 0.5;
+          return 0.5 + baseFreqValue;
         }
         return baseFreqValue;
     }, [filters.noise.type, filters.noise.scale]);
-
-    const getSliceShiftDispMapMatrix = () => {
-        if (filters.sliceShift.direction === 'horizontal') {
-        return "1 0 0 0 0  0 0 0 0 0.5  0 0 0 0 0  0 0 0 1 0";
-        }
-        // vertical
-        return "0 0 0 0 0.5  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0";
-    }
 
     const noiseTransferParams = useMemo(() => {
         const { blendMode, opacity } = filters.noise;
@@ -199,9 +198,7 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                         stitchTiles="stitch" 
                         result="turbulence"
                     >
-                        {filters.noise.animate && (
-                            <animate attributeName="seed" values={animatedNoiseSeedValues} dur="0.2s" repeatCount="indefinite" />
-                        )}
+                        <animate attributeName="seed" values={animatedNoiseSeedValues} dur="0.2s" repeatCount="indefinite" />
                     </feTurbulence>
                     <feColorMatrix in="turbulence" type="saturate" values="0" result="monochromeNoise"/>
                     <feComponentTransfer in="monochromeNoise" result="adjustedNoise">
@@ -289,10 +286,10 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                 </filter>
 
                 {/* Slice Shift */}
-                <filter id="sliceShift" x="-50%" y="-50%" width="200%" height="200%">
+                <filter id="sliceShift" x="-100%" y="-100%" width="300%" height="300%">
                     <feTurbulence 
                         type="turbulence" 
-                        baseFrequency={filters.sliceShift.direction === 'horizontal' ? `0.001 ${filters.sliceShift.sliceHeight / 200}` : `${filters.sliceShift.sliceHeight / 200} 0.001`} 
+                        baseFrequency={filters.sliceShift.direction === 'horizontal' ? `0.001 ${filters.sliceShift.density / 200}` : `${filters.sliceShift.density / 200} 0.001`} 
                         numOctaves="1" 
                         seed="0"
                         result="bands"
@@ -302,25 +299,21 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                         <feFuncG type="discrete" tableValues="0 1" />
                         <feFuncB type="discrete" tableValues="0 1" />
                     </feComponentTransfer>
-                    <feColorMatrix in="sharpBands" type="matrix" values={getSliceShiftDispMapMatrix()} result="dispMap"/>
-                    <feDisplacementMap 
-                        in="SourceGraphic" 
-                        in2="dispMap" 
-                        scale={filters.sliceShift.offsetAmount} 
-                        xChannelSelector="R"
-                        yChannelSelector="G"
-                        result="shifted"
-                        edgeMode="duplicate"
-                    >
-                        {filters.sliceShift.animate && <animate attributeName="scale" values={getSliceShiftAnimationValues()} dur={`${2 / filters.sliceShift.animationSpeed}s`} repeatCount="indefinite" />}
-                    </feDisplacementMap>
                     <feComposite in="SourceGraphic" in2="sharpBands" operator="out" result="unshifted"/>
-                    <feComposite in="shifted" in2="sharpBands" operator="in" result="shiftedOnly"/>
-                    <feMerge result="mergedSlices">
+                    <feComposite in="SourceGraphic" in2="sharpBands" operator="in" result="toShift"/>
+                    <feOffset in="toShift" dx={filters.sliceShift.offsetX} dy={filters.sliceShift.offsetY} result="shifted">
+                        {filters.sliceShift.animate && <>
+                            <animate attributeName="dx" values={sliceShiftAnim.dxValues} dur={`${2 / filters.sliceShift.animationSpeed}s`} repeatCount="indefinite" />
+                            <animate attributeName="dy" values={sliceShiftAnim.dyValues} dur={`${2 / filters.sliceShift.animationSpeed}s`} repeatCount="indefinite" />
+                        </>}
+                    </feOffset>
+                    <feComponentTransfer in="shifted" result="shifted_alpha">
+                        <feFuncA type="linear" slope={filters.sliceShift.opacity} />
+                    </feComponentTransfer>
+                    <feMerge>
                         <feMergeNode in="unshifted"/>
-                        <feMergeNode in="shiftedOnly"/>
+                        <feMergeNode in="shifted_alpha"/>
                     </feMerge>
-                    <feComposite in="mergedSlices" in2="SourceGraphic" operator="in" />
                 </filter>
 
                 {/* CRT Effect */}
@@ -329,43 +322,42 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                     <feTurbulence type="fractalNoise" baseFrequency="0.003" numOctaves="1" seed="1" result="distort_map" />
                     <feDisplacementMap in="SourceGraphic" in2="distort_map" scale={filters.crt.barrelDistortion} xChannelSelector="R" yChannelSelector="G" result="distorted_image" />
 
-                    {/* --- Banding Effect --- */}
-                    {/* Base texture for the fuzzy bands */}
-                    <feTurbulence type="fractalNoise" baseFrequency="0.02 0.1" numOctaves="2" seed="5" result="static_bands" />
-                    {/* Animated vertical noise to make the bands drift/roll */}
-                    <feTurbulence type="fractalNoise" baseFrequency="0 0.05" numOctaves="2" seed="10" result="scrolling_map">
-                        {filters.crt.animate && (
-                            <animate attributeName="seed" from="10" to="110" dur={`${4 / filters.crt.animationSpeed}s`} repeatCount="indefinite" />
-                        )}
+                    {/* Banding Effect */}
+                    <feTurbulence type="turbulence" baseFrequency={`0 ${filters.crt.bandingDensity / 1000}`} numOctaves="1" result="bands_base" />
+                    <feTurbulence type="turbulence" baseFrequency="0.1" numOctaves="1" result="bands_fuzz_map">
+                         {filters.crt.animate && <animate attributeName="seed" from="0" to="100" dur={`${4 / filters.crt.animationSpeed}s`} repeatCount="indefinite" />}
                     </feTurbulence>
-                    {/* Displace the static texture with the animated noise */}
-                    <feDisplacementMap in="static_bands" in2="scrolling_map" scale={filters.crt.bandingDrift} xChannelSelector="R" yChannelSelector="G" result="scrolling_bands" />
-                    
-                    {/* --- Banding MASK --- */}
-                    {/* Generate vertical noise to define the bands' positions */}
-                    <feTurbulence type="turbulence" baseFrequency={`0 ${filters.crt.bandingDensity / 1000}`} numOctaves="1" seed="20" result="banding_mask_noise" />
-                    {/* Sharpen the noise into distinct bands using a high-contrast transfer */}
-                    <feComponentTransfer in="banding_mask_noise" result="banding_mask">
-                        <feFuncR type="linear" slope={filters.crt.bandingSharpness} intercept={0.5 - filters.crt.bandingSharpness / 2} />
-                        <feFuncG type="linear" slope={filters.crt.bandingSharpness} intercept={0.5 - filters.crt.bandingSharpness / 2} />
-                        <feFuncB type="linear" slope={filters.crt.bandingSharpness} intercept={0.5 - filters.crt.bandingSharpness / 2} />
+                    <feDisplacementMap in="bands_base" in2="bands_fuzz_map" scale="15" xChannelSelector="R" yChannelSelector="A" result="fuzzed_bands"/>
+                    <feTurbulence type="turbulence" baseFrequency="0 1" numOctaves="1" result="bands_drift_map">
+                         {filters.crt.animate && <animate attributeName="baseFrequency" from="0 1" to="0 1.2" dur={`${4 / filters.crt.bandingDrift}s`} repeatCount="indefinite" />}
+                    </feTurbulence>
+                    <feDisplacementMap in="fuzzed_bands" in2="bands_drift_map" scale="200" xChannelSelector="R" yChannelSelector="G" result="drifted_bands"/>
+                    <feComponentTransfer in="drifted_bands" result="sharp_bands">
+                        <feFuncA type="discrete" tableValues={`0 ${filters.crt.bandingSharpness} 1 1`} />
                     </feComponentTransfer>
-                    
-                    {/* Apply the mask to the scrolling bands effect */}
-                    <feComposite in="scrolling_bands" in2="banding_mask" operator="in" result="masked_scrolling_bands" />
-
-                    {/* Blend the final masked bands with the distorted image */}
-                    <feComponentTransfer in="masked_scrolling_bands" result="banding_alpha">
+                    <feComponentTransfer in="sharp_bands" result="bands_alpha">
                         <feFuncA type="linear" slope={filters.crt.bandingOpacity} />
                     </feComponentTransfer>
-                    <feBlend in="distorted_image" in2="banding_alpha" mode="screen" result="image_with_bands" />
+                    
+                    {/* Create a colored phosphor layer for banding, controlled by hue */}
+                    <feFlood flood-color="#88FFFF" result="phosphor_base_color" />
+                    <feColorMatrix in="phosphor_base_color" type="hueRotate" values={String(filters.crt.hue)} result="hued_phosphor" />
+                    <feComposite in="hued_phosphor" in2="bands_alpha" operator="in" result="colored_bands" />
+                    <feBlend in="distorted_image" in2="colored_bands" mode="screen" result="image_with_bands" />
 
-                    {/* Scanlines */}
+                    {/* Scanlines (re-engineered for true opacity control) */}
                     <feTurbulence type="fractalNoise" baseFrequency="0 3.5" numOctaves="1" result="scanlines_noise" />
-                    <feComponentTransfer in="scanlines_noise" result="scanlines_alpha">
-                        <feFuncA type="linear" slope={filters.crt.scanlineOpacity} />
-                    </feComponentTransfer>
-                    <feBlend in="image_with_bands" in2="scanlines_alpha" mode="multiply" result="image_with_scanlines" />
+                    <feBlend in="image_with_bands" in2="scanlines_noise" mode="multiply" result="image_with_scanlines_full" />
+                    <feComposite
+                        in="image_with_bands"
+                        in2="image_with_scanlines_full"
+                        operator="arithmetic"
+                        k1="0"
+                        k2={1 - filters.crt.scanlineOpacity}
+                        k3={filters.crt.scanlineOpacity}
+                        k4="0"
+                        result="image_with_scanlines"
+                    />
                     
                     {/* Vignette */}
                     <feMorphology in="SourceAlpha" operator="erode" radius={filters.crt.vignetteOpacity * 20} result="eroded_alpha" />

@@ -73,11 +73,9 @@ export const useScreenRecorder = (videoDuration: number) => {
             setRecordingError("An internal error occurred. Please try again.");
             return;
         }
-
-        if (videoDuration <= 0) {
-            alert("Could not determine the animation's duration. Cannot start automatic recording.");
-            return;
-        }
+        
+        // Default to a 5 second recording for static images
+        const recordingDurationMs = (videoDuration > 0 ? videoDuration : 5) * 1000;
 
         setIsRecording(true);
 
@@ -215,7 +213,7 @@ export const useScreenRecorder = (videoDuration: number) => {
 
             recordingTimeoutRef.current = window.setTimeout(() => {
                 stopRecording();
-            }, (videoDuration * 1000) + 500);
+            }, recordingDurationMs + 500);
 
         } catch (err: any) {
             console.error("Error starting element capture:", err);

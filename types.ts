@@ -22,7 +22,6 @@ export interface NoiseSettings extends FilterSetting {
   type: 'fractalNoise' | 'turbulence' | 'grain';
   opacity: number;
   blendMode: 'overlay' | 'screen' | 'difference';
-  animate: boolean;
 }
 
 export interface SlitScanSettings extends FilterSetting {
@@ -31,7 +30,7 @@ export interface SlitScanSettings extends FilterSetting {
   animationSpeed: number;
   density: number;
   animate: boolean;
-  animationType: 'pulse' | 'flicker' | 'sweep';
+  animationType: 'pulse' | 'flicker' | 'sweep' | 'wave';
   animationMinAmount: number;
   animationMaxAmount: number;
 }
@@ -43,7 +42,7 @@ export interface PixelateSettings extends FilterSetting {
     type: 'blocky' | 'crystal';
     animationMinAmount: number;
     animationMaxAmount: number;
-    animationType: 'pulse' | 'flicker' | 'sweep';
+    animationType: 'pulse' | 'flicker' | 'sweep' | 'wave';
 }
 
 export interface HueRotateSettings extends FilterSetting {
@@ -61,7 +60,7 @@ export interface BlurSettings extends FilterSetting {
     animationSpeed: number;
     animationMinAmount: number;
     animationMaxAmount: number;
-    animationType: 'pulse' | 'flicker' | 'sweep';
+    animationType: 'pulse' | 'flicker' | 'sweep' | 'wave';
 }
 
 export interface ColorControlsSettings extends FilterSetting {
@@ -77,12 +76,14 @@ export interface JpegGlitchSettings extends FilterSetting {
 }
 
 export interface SliceShiftSettings extends FilterSetting {
-  sliceHeight: number;
-  offsetAmount: number;
+  density: number;
+  opacity: number;
+  offsetX: number;
+  offsetY: number;
   direction: 'horizontal' | 'vertical';
   animate: boolean;
   animationSpeed: number;
-  animationType: 'pulse' | 'flicker' | 'sweep';
+  animationType: 'pulse' | 'flicker' | 'sweep' | 'wave';
   animationMinAmount: number;
   animationMaxAmount: number;
 }
@@ -92,10 +93,11 @@ export interface CRTSettings extends FilterSetting {
   scanlineOpacity: number;
   barrelDistortion: number;
   vignetteOpacity: number;
+  hue: number;
   animate: boolean;
   animationSpeed: number;
-  bandingDrift: number;
   bandingDensity: number;
+  bandingDrift: number;
   bandingSharpness: number;
 }
 
@@ -121,6 +123,40 @@ export interface FilterSettings {
 export type FilterKey = keyof FilterSettings;
 
 export type OverlayType = 'none' | 'hud' | 'cam' | 'vcr' | 'scope' | 'terminal';
+
+export type CrosshairType = 'none' | 'classic' | 'dot' | 'plus' | 'circle';
+export type TerminalTheme = 'green' | 'amber' | 'blue' | 'white';
+
+export interface HudSettings {
+  topLeft: string;
+  bottomLeft: string;
+  topRight: string;
+  crosshair: CrosshairType;
+  color: string;
+  fontSize: number;
+}
+
+export interface CamSettings {
+  camId: string;
+  color: string;
+  fontSize: number;
+}
+
+export interface TerminalSettings {
+  title: string;
+  user: string;
+  command: string;
+  theme: TerminalTheme;
+  fontSize: number;
+}
+
+export interface OverlaySettings {
+  date: string;
+  time: string;
+  hud: HudSettings;
+  cam: CamSettings;
+  terminal: TerminalSettings;
+}
 
 export interface TransformSettings {
   flipHorizontal: boolean;
