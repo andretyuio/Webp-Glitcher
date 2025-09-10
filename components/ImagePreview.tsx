@@ -14,7 +14,8 @@ const ImagePreview = forwardRef<HTMLDivElement, ImagePreviewProps>(({ imageUrl, 
   
   const transform = [
     flipHorizontal ? 'scaleX(-1)' : '',
-    flipVertical ? 'scaleY(-1)' : ''
+    flipVertical ? 'scaleY(-1)' : '',
+    'translateZ(0)' // Hack to promote element to its own GPU layer to prevent rendering bugs during screen capture
   ].join(' ').trim();
 
   const aspectRatio = imageDimensions 
@@ -30,8 +31,12 @@ const ImagePreview = forwardRef<HTMLDivElement, ImagePreviewProps>(({ imageUrl, 
         {imageUrl ? (
             <div 
               ref={ref}
-              className="grid place-items-center [grid-template-areas:'preview'] max-w-full max-h-full" 
-              style={{ transform, ...filterStyle }}
+              className="grid place-items-center [grid-template-areas:'preview'] w-full h-full" 
+              style={{ 
+                ...filterStyle,
+                transform,
+                willChange: 'transform, filter' // Performance hint for the browser
+              }}
             >
               <img
                 id="preview-image"
