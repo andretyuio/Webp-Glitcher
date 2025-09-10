@@ -134,12 +134,14 @@ export interface HudSettings {
   crosshair: CrosshairType;
   color: string;
   fontSize: number;
+  simulateTime: boolean;
 }
 
 export interface CamSettings {
   camId: string;
   color: string;
   fontSize: number;
+  simulateTime: boolean;
 }
 
 export interface TerminalSettings {

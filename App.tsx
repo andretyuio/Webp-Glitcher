@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import saveAs from 'file-saver';
 import { FilterSettings, OverlayType, TransformSettings, WebPData, OverlaySettings, CrosshairType, TerminalTheme } from './types';
 import Header from './components/Header';
@@ -34,15 +34,17 @@ const initialOverlaySettings: OverlaySettings = {
   hud: {
     topLeft: '4K 60',
     bottomLeft: '[AF-C] [AWB]',
-    topRight: 'REC 00:15:32',
+    topRight: 'REC 00:00:00',
     crosshair: 'classic',
     color: '#FFFFFF',
     fontSize: 16,
+    simulateTime: false,
   },
   cam: {
     camId: 'CAM_01',
     color: '#FFFF64',
     fontSize: 8,
+    simulateTime: false,
   },
   terminal: {
     title: 'GLITCH_TERMINAL',
@@ -61,9 +63,92 @@ function App() {
   const [overlay, setOverlay] = useState<OverlayType>('none');
   const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>(initialOverlaySettings);
   const [isPaused, setIsPaused] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const previewRef = useRef<HTMLDivElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const animatedImageRef = useRef<HTMLImageElement>(null);
+
+  const {
+    loadingStatus, 
+    errorMessage: analysisError, 
+    videoDuration, 
+    imageDimensions,
+    webpData,
+    handleRetry,
+  } = useWebPAnalyzer(currentFile);
+
+  const isAnimated = !!webpData && webpData.frames.length > 1;
+
+  const {
+      isRecording,
+      recordingError,
+      isTutorialVisible,
+      startRecording,
+      stopRecording,
+      proceedWithRecording,
+      cancelRecordingSetup,
+  } = useScreenRecorder(videoDuration);
+
+  // Effect to simulate time passing for overlays
+  useEffect(() => {
+    const isHudSimulating = overlay === 'hud' && overlaySettings.hud.simulateTime;
+    const isCamSimulating = overlay === 'cam' && overlaySettings.cam.simulateTime;
+
+    if (!isHudSimulating && !isCamSimulating) {
+      return;
+    }
+
+    // Parse the initial date and time from settings
+    const dateTimeString = `${overlaySettings.date} ${overlaySettings.time}`;
+    let simulationDate = new Date(dateTimeString);
+
+    // Fallback to current time if parsing fails
+    if (isNaN(simulationDate.getTime())) {
+      simulationDate = new Date();
+    }
+
+    const intervalId = setInterval(() => {
+      simulationDate.setSeconds(simulationDate.getSeconds() + 1);
+
+      // Manually format the new date and time to ensure consistency
+      const year = simulationDate.getFullYear();
+      const month = String(simulationDate.getMonth() + 1).padStart(2, '0');
+      const day = String(simulationDate.getDate()).padStart(2, '0');
+      
+      let hours = simulationDate.getHours();
+      const minutes = String(simulationDate.getMinutes()).padStart(2, '0');
+      const seconds = String(simulationDate.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // Handle midnight
+      const hoursStr = String(hours).padStart(2, '0');
+
+      setOverlaySettings(prev => ({
+        ...prev,
+        date: `${month}/${day}/${year}`,
+        time: `${hoursStr}:${minutes}:${seconds} ${ampm}`,
+      }));
+    }, 1000);
+
+    // Cleanup interval on effect change or component unmount
+    return () => clearInterval(intervalId);
+
+  }, [overlay, overlaySettings.hud.simulateTime, overlaySettings.cam.simulateTime]);
+  
+  // Effect to simulate recording time
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordingTime(0);
+      return;
+    }
+
+    const timerId = setInterval(() => {
+      setRecordingTime(prevTime => prevTime + 1);
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [isRecording]);
+
 
   const overlays = useMemo<Record<OverlayType, string>>(() => {
     // Helper function for HUD crosshairs
@@ -92,6 +177,19 @@ function App() {
             default: return '#39FF14';
         }
     }
+
+    const formatRecordingTime = (totalSeconds: number): string => {
+        const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+        const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+        const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+        return `REC ${hours}:${minutes}:${seconds}`;
+    };
+
+    const formatShortRecTime = (totalSeconds: number): string => {
+        const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+        const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+        return `REC ${minutes}:${seconds}`;
+    };
     
     const { hud, cam, terminal } = overlaySettings;
     const terminalColor = getTerminalThemeColor(terminal.theme);
@@ -101,36 +199,30 @@ function App() {
     const startY = 30;
     const termCursorY = startY + termLineHeight * 6 - termFontSize;
 
+    const hudTopRightText = isRecording ? formatRecordingTime(recordingTime) : hud.topRight;
+    
+    const camTopRightContent = isRecording
+        ? `<tspan style="animation: rec-blink 1s step-end infinite; fill: rgba(255,80,80,0.9);">●</tspan> ${formatShortRecTime(recordingTime)}`
+        : 'PLAY';
+    const camSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 200 200' preserveAspectRatio='none'>
+        <style>@keyframes rec-blink { 50% { opacity: 0.3; } }</style>
+        <g font-family='monospace' fill='${cam.color}' fill-opacity='0.8' font-size='${cam.fontSize}'>
+            <text x='10' y='18'>${cam.camId}</text>
+            <text x='190' y='18' text-anchor='end'>${camTopRightContent}</text>
+            <text x='10' y='192' font-size='${cam.fontSize * 0.8}'>${overlaySettings.time}</text>
+            <text x='190' y='192' text-anchor='end' font-size='${cam.fontSize * 0.8}'>${overlaySettings.date}</text>
+        </g>
+    </svg>`;
+
     return {
         none: '',
-        hud: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 800 600' preserveAspectRatio='none'><g fill='none' stroke='${hud.color}' stroke-opacity='0.8' stroke-width='1.5' color='${hud.color}'>${getHudCrosshair(hud.crosshair)}</g><g font-family='monospace' fill='${hud.color}' fill-opacity='0.9' font-size='${hud.fontSize}'><text x='20' y='35'>${hud.topLeft}</text><text x='20' y='580'>${hud.bottomLeft}</text><g fill='rgba(255,80,80,0.9)'><circle cx='770' cy='30' r='8' /><text x='760' y='35' text-anchor='end' fill='white'>${hud.topRight}</text></g><text x='780' y='580' text-anchor='end' font-size='${hud.fontSize * 0.9}'>${overlaySettings.date} ${overlaySettings.time}</text></g></svg>`)}`,
-        cam: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 200 200' preserveAspectRatio='none'><g font-family='monospace' fill='${cam.color}' fill-opacity='0.8' font-size='${cam.fontSize}'><text x='10' y='18'>${cam.camId}</text><text x='190' y='18' text-anchor='end'>PLAY</text><text x='10' y='192' font-size='${cam.fontSize * 0.8}'>${overlaySettings.time}</text><text x='190' y='192' text-anchor='end' font-size='${cam.fontSize * 0.8}'>${overlaySettings.date}</text></g></svg>`)}`,
+        hud: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 800 600' preserveAspectRatio='none'><g fill='none' stroke='${hud.color}' stroke-opacity='0.8' stroke-width='1.5' color='${hud.color}'>${getHudCrosshair(hud.crosshair)}</g><g font-family='monospace' fill='${hud.color}' fill-opacity='0.9' font-size='${hud.fontSize}'><text x='20' y='35'>${hud.topLeft}</text><text x='20' y='580'>${hud.bottomLeft}</text><g fill='rgba(255,80,80,0.9)'><circle cx='770' cy='30' r='8'><animate attributeName='opacity' values='1;0.2;1' dur='1s' repeatCount='indefinite'/></circle><text x='760' y='35' text-anchor='end' fill='white'>${hudTopRightText}</text></g><text x='780' y='580' text-anchor='end' font-size='${hud.fontSize * 0.9}'>${overlaySettings.date} ${overlaySettings.time}</text></g></svg>`)}`,
+        cam: `data:image/svg+xml,${encodeURIComponent(camSvg)}`,
         vcr: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 400 300' preserveAspectRatio='none'><style>.vcr{font-family: monospace; fill: rgba(255,255,255,0.9); font-size: 24px; text-shadow: 2px 2px #000;}</style><text x='20' y='40' class='vcr'>▶ PLAY</text><text x='380' y='280' class='vcr' text-anchor='end'>SP</text></svg>`)}`,
         scope: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='-1 -1 2 2' preserveAspectRatio='none'><defs><mask id='scope-mask'><rect width='2' height='2' x='-1' y='-1' fill='white'/><circle r='0.9' fill='black'/></mask></defs><rect width='2' height='2' x='-1' y='-1' fill='black' mask='url(#scope-mask)'/><line x1='-0.8' x2='0.8' y1='0' y2='0' stroke='rgba(255,0,0,0.7)' stroke-width='0.01'/><line x1='0' x2='0' y1='-0.8' y2='0.8' stroke='rgba(255,0,0,0.7)' stroke-width='0.01'/><line x1='-0.1' x2='0.1' y1='0' y2='0' stroke='rgba(255,0,0,0.7)' stroke-width='0.03'/><line x1='0' x2='0' y1='-0.1' y2='0.1' stroke='rgba(255,0,0,0.7)' stroke-width='0.03'/></svg>`)}`,
         terminal: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 400 300' preserveAspectRatio='none'><g font-family='monospace' font-size='${termFontSize}' fill='${terminalColor}' style='text-shadow: 1px 1px 1px #000, 2px 2px 3px #000;'><text x="15" y="${startY}"><tspan opacity='0.8'>${terminal.user} </tspan><tspan>${terminal.command}</tspan></text><text x="15" y="${startY + termLineHeight * 1}" white-space="pre">Initializing analysis sequence...</text><text x="15" y="${startY + termLineHeight * 2}" white-space="pre">[<tspan>||||||||||||||||||||</tspan><tspan opacity="0.3">||||||</tspan>] 75%</text><text x="15" y="${startY + termLineHeight * 3}" white-space="pre">STREAM_TARGET: 192.168.1.101</text><text x="15" y="${startY + termLineHeight * 4}" white-space="pre">PACKET_SIZE: 4096</text><text x="15" y="${startY + termLineHeight * 5}" white-space="pre">STATUS: <tspan font-weight="bold">LOCKED</tspan></text><rect x="15" y="${termCursorY}" width="${termFontSize * 0.6}" height="${termFontSize}" fill="${terminalColor}"><animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/></rect></g></svg>`)}`,
     }
-  }, [overlaySettings]);
-
-  const {
-    loadingStatus, 
-    errorMessage: analysisError, 
-    videoDuration, 
-    imageDimensions,
-    webpData,
-    handleRetry,
-  } = useWebPAnalyzer(currentFile);
-
-  const isAnimated = !!webpData && webpData.frames.length > 1;
-
-  const {
-      isRecording,
-      recordingError,
-      isTutorialVisible,
-      startRecording,
-      stopRecording,
-      proceedWithRecording,
-      cancelRecordingSetup,
-  } = useScreenRecorder(videoDuration);
+  }, [overlaySettings, isRecording, recordingTime]);
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

@@ -46,7 +46,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
     const handleOverlaySettingChange = (
       type: 'hud' | 'cam' | 'terminal', 
       key: string, 
-      value: string | number
+      value: string | number | boolean
     ) => {
       setOverlaySettings(prev => ({
         ...prev,
@@ -131,13 +131,23 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
                          <label htmlFor="hud-color" className="input-label">Color</label>
                          <input type="color" id="hud-color" value={overlaySettings.hud.color} onChange={(e) => handleOverlaySettingChange('hud', 'color', e.target.value)} className="w-12 h-8 p-1 bg-gray-700 border border-gray-600 rounded cursor-pointer"/>
                       </div>
-                      <div className="pt-2 border-t border-gray-700">
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                        <label htmlFor="hud-simulate-time" className="input-label cursor-pointer my-0">Simulate Time Passing</label>
+                        <input
+                          type="checkbox"
+                          id="hud-simulate-time"
+                          checked={overlaySettings.hud.simulateTime}
+                          onChange={(e) => handleOverlaySettingChange('hud', 'simulateTime', e.target.checked)}
+                          className="toggle-checkbox-sm"
+                        />
+                      </div>
+                      <div>
                         <label htmlFor="overlay-time-hud" className="input-label">Time</label>
-                        <input type="text" id="overlay-time-hud" value={overlaySettings.time} onChange={(e) => setOverlaySettings(prev => ({ ...prev, time: e.target.value }))} className="text-input" />
+                        <input type="text" id="overlay-time-hud" value={overlaySettings.time} onChange={(e) => setOverlaySettings(prev => ({ ...prev, time: e.target.value }))} className="text-input" disabled={overlaySettings.hud.simulateTime} />
                       </div>
                       <div>
                         <label htmlFor="overlay-date-hud" className="input-label">Date</label>
-                        <input type="text" id="overlay-date-hud" value={overlaySettings.date} onChange={(e) => setOverlaySettings(prev => ({ ...prev, date: e.target.value }))} className="text-input" />
+                        <input type="text" id="overlay-date-hud" value={overlaySettings.date} onChange={(e) => setOverlaySettings(prev => ({ ...prev, date: e.target.value }))} className="text-input" disabled={overlaySettings.hud.simulateTime} />
                       </div>
                     </div>
                   )}
@@ -154,13 +164,23 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
                          <label htmlFor="cam-color" className="input-label">Color</label>
                          <input type="color" id="cam-color" value={overlaySettings.cam.color} onChange={(e) => handleOverlaySettingChange('cam', 'color', e.target.value)} className="w-12 h-8 p-1 bg-gray-700 border border-gray-600 rounded cursor-pointer"/>
                       </div>
-                      <div className="pt-2 border-t border-gray-700">
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                        <label htmlFor="cam-simulate-time" className="input-label cursor-pointer my-0">Simulate Time Passing</label>
+                        <input
+                          type="checkbox"
+                          id="cam-simulate-time"
+                          checked={overlaySettings.cam.simulateTime}
+                          onChange={(e) => handleOverlaySettingChange('cam', 'simulateTime', e.target.checked)}
+                          className="toggle-checkbox-sm"
+                        />
+                      </div>
+                      <div>
                         <label htmlFor="overlay-time-cam" className="input-label">Time</label>
-                        <input type="text" id="overlay-time-cam" value={overlaySettings.time} onChange={(e) => setOverlaySettings(prev => ({ ...prev, time: e.target.value }))} className="text-input" />
+                        <input type="text" id="overlay-time-cam" value={overlaySettings.time} onChange={(e) => setOverlaySettings(prev => ({ ...prev, time: e.target.value }))} className="text-input" disabled={overlaySettings.cam.simulateTime} />
                       </div>
                       <div>
                         <label htmlFor="overlay-date-cam" className="input-label">Date</label>
-                        <input type="text" id="overlay-date-cam" value={overlaySettings.date} onChange={(e) => setOverlaySettings(prev => ({ ...prev, date: e.target.value }))} className="text-input" />
+                        <input type="text" id="overlay-date-cam" value={overlaySettings.date} onChange={(e) => setOverlaySettings(prev => ({ ...prev, date: e.target.value }))} className="text-input" disabled={overlaySettings.cam.simulateTime} />
                       </div>
                     </div>
                   )}
@@ -291,8 +311,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
             )}
             <style>{`
                 .input-label { display: block; text-transform: capitalize; font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; color: #9ca3af; margin-bottom: 0.25rem; }
-                .text-input, .select-input { width: 100%; background-color: #374151; border: 1px solid #4b5563; border-radius: 0.375rem; padding: 0.5rem 0.75rem; color: #ffffff; font-size: 0.875rem; line-height: 1.25rem; outline: none; }
+                .text-input, .select-input { width: 100%; background-color: #374151; border: 1px solid #4b5563; border-radius: 0.375rem; padding: 0.5rem 0.75rem; color: #ffffff; font-size: 0.875rem; line-height: 1.25rem; outline: none; transition: background-color 0.2s; }
                 .text-input:focus, .select-input:focus { ring: 1; border-color: #22d3ee; box-shadow: 0 0 0 1px #22d3ee; }
+                .text-input:disabled { background-color: #4b5563; cursor: not-allowed; opacity: 0.7; }
                 .select-input { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
                 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
                 input[type="color"]::-webkit-color-swatch { border: none; border-radius: 0.25rem; }
