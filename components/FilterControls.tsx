@@ -1,6 +1,5 @@
-
 import React from 'react';
-import type { FilterSettings, FilterKey, NoiseSettings, ChannelShiftSettings, SlitScanSettings, BlurSettings, SliceShiftSettings, PixelateSettings, ImageEffectsSettings, TransformSettings, HueRotateSettings } from '../types';
+import type { FilterSettings, FilterKey, NoiseSettings, ChannelShiftSettings, SlitScanSettings, BlurSettings, SliceShiftSettings, PixelateSettings, ImageEffectsSettings, TransformSettings, HueRotateSettings, CRTSettings } from '../types';
 import ControlSlider from './ControlSlider';
 
 interface FilterControlsProps {
@@ -10,7 +9,7 @@ interface FilterControlsProps {
   onTransformChange: React.Dispatch<React.SetStateAction<TransformSettings>>;
 }
 
-type AnimationSettings = (BlurSettings | NoiseSettings | SliceShiftSettings | PixelateSettings | ChannelShiftSettings | SlitScanSettings) & { animate: boolean, animationSpeed: number };
+type AnimationSettings = (BlurSettings | SliceShiftSettings | PixelateSettings | ChannelShiftSettings | SlitScanSettings) & { animate: boolean, animationSpeed: number };
 
 const ButtonGroup = ({ label, options, selected, onChange }: { label: string, options: string[], selected: string, onChange: (value: string) => void }) => (
   <div>
@@ -141,12 +140,42 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
             <div className='border-l-2 border-blue-500 pl-3 space-y-3'>
                 <p className='font-bold text-blue-400'>Blue Channel</p>
                 <ControlSlider label="Offset" value={settings.channelShift.bOffset} onChange={val => handleValueChange('channelShift', 'bOffset', val)} min={-50} max={50} step={1} />
-                <ControlSlider label="Angle" value={settings.channelShift.bAngle} onChange={val => handleValueChange('channelShift', 'bAngle', val)} min={0} max={360} step={1} />
+                <ControlSlider label="Angle" value={settings.channelShift.bOffset} onChange={val => handleValueChange('channelShift', 'bAngle', val)} min={0} max={360} step={1} />
             </div>
           </div>
         )}
       </div>
 
+      {/* CRT Effect */}
+      <div className="p-4 bg-gray-700/50 rounded-lg">
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-lg font-bold text-white">CRT Effect</span>
+          <input type="checkbox" checked={settings.crt.active} onChange={() => handleToggle('crt')} className="toggle-checkbox" />
+        </label>
+        {settings.crt.active && (
+          <div className="mt-4 space-y-3">
+            <ControlSlider label="Banding Opacity" value={settings.crt.bandingOpacity} onChange={val => handleValueChange('crt', 'bandingOpacity', val)} min={0} max={1} step={0.05} />
+            <ControlSlider label="Banding Density" value={settings.crt.bandingDensity} onChange={val => handleValueChange('crt', 'bandingDensity', val)} min={1} max={50} step={0.5} />
+            <ControlSlider label="Banding Sharpness" value={settings.crt.bandingSharpness} onChange={val => handleValueChange('crt', 'bandingSharpness', val)} min={1} max={100} step={1} />
+            <ControlSlider label="Scanline Opacity" value={settings.crt.scanlineOpacity} onChange={val => handleValueChange('crt', 'scanlineOpacity', val)} min={0} max={1} step={0.05} />
+            <ControlSlider label="Distortion" value={settings.crt.barrelDistortion} onChange={val => handleValueChange('crt', 'barrelDistortion', val)} min={0} max={50} step={1} />
+            <ControlSlider label="Vignette" value={settings.crt.vignetteOpacity} onChange={val => handleValueChange('crt', 'vignetteOpacity', val)} min={0} max={1} step={0.05} />
+             <div className='border-l-2 border-cyan-500 pl-3 space-y-3 mt-4'>
+                <label className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300">
+                    <span>Animate Banding</span>
+                    <input type="checkbox" checked={settings.crt.animate} onChange={() => handleSubToggle('crt', 'animate')} className="toggle-checkbox-sm" />
+                </label>
+                 {settings.crt.animate && (
+                    <>
+                      <ControlSlider label="Banding Speed" value={settings.crt.animationSpeed} onChange={val => handleValueChange('crt', 'animationSpeed', val)} min={0.1} max={5} step={0.1} />
+                      <ControlSlider label="Banding Drift" value={settings.crt.bandingDrift} onChange={val => handleValueChange('crt', 'bandingDrift', val)} min={0} max={150} step={1} />
+                    </>
+                 )}
+            </div>
+          </div>
+        )}
+      </div>
+      
       {/* Noise */}
       <div className="p-4 bg-gray-700/50 rounded-lg">
         <label className="flex items-center justify-between cursor-pointer">
@@ -154,20 +183,17 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
           <input type="checkbox" checked={settings.noise.active} onChange={() => handleToggle('noise')} className="toggle-checkbox" />
         </label>
         {settings.noise.active && (
-          <div className="mt-4 space-y-3">
-            <ControlSlider label="Amount" value={settings.noise.amount} onChange={val => handleValueChange('noise', 'amount', val)} min={0.01} max={0.5} step={0.005} />
+          <div className="mt-4 space-y-4">
+            <ControlSlider label="Scale" value={settings.noise.scale} onChange={val => handleValueChange('noise', 'scale', val)} min={0.1} max={3} step={0.1} />
             <ControlSlider label="Opacity" value={settings.noise.opacity} onChange={val => handleValueChange('noise', 'opacity', val)} min={0} max={1} step={0.05} />
-            <ControlSlider label="Octaves" value={settings.noise.octaves} onChange={val => handleValueChange('noise', 'octaves', val)} min={1} max={10} step={1} />
+            <div className='border-l-2 border-cyan-500 pl-3 space-y-3'>
+                <label className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300">
+                    <span>Animate</span>
+                    <input type="checkbox" checked={settings.noise.animate} onChange={() => handleSubToggle('noise', 'animate')} className="toggle-checkbox-sm" />
+                </label>
+            </div>
             <ButtonGroup label="Type" options={['fractalNoise', 'turbulence', 'grain']} selected={settings.noise.type} onChange={val => handleValueChange('noise', 'type', val as NoiseSettings['type'])} />
             <ButtonGroup label="Blend Mode" options={['overlay', 'screen', 'difference']} selected={settings.noise.blendMode} onChange={val => handleValueChange('noise', 'blendMode', val as NoiseSettings['blendMode'])} />
-            <AnimationControls 
-                filterKey='noise' 
-                settings={settings.noise} 
-                handleSubToggle={handleSubToggle} 
-                handleValueChange={handleValueChange} 
-                animationTypes={[]} 
-                showAmountControls={false} 
-            />
           </div>
         )}
       </div>
@@ -180,7 +206,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
         </label>
         {settings.slitScan.active && (
           <div className="mt-4 space-y-3">
-            <ControlSlider label="Amount" value={settings.slitScan.amount} onChange={val => handleValueChange('slitScan', 'amount', val)} min={0} max={100} step={1} />
+            <ControlSlider label="Amount" value={settings.slitScan.amount} onChange={val => handleValueChange('slitScan', 'amount', val)} min={1} max={100} step={1} />
             <ControlSlider label="Wave Density" value={settings.slitScan.density} onChange={val => handleValueChange('slitScan', 'density', val)} min={1} max={50} step={0.5} />
             <ButtonGroup label="Direction" options={['vertical', 'horizontal']} selected={settings.slitScan.direction} onChange={val => handleValueChange('slitScan', 'direction', val as SlitScanSettings['direction'])} />
             <AnimationControls filterKey='slitScan' settings={settings.slitScan} handleSubToggle={handleSubToggle} handleValueChange={handleValueChange} />
@@ -272,30 +298,6 @@ const FilterControls: React.FC<FilterControlsProps> = ({ settings, onChange, tra
             <ControlSlider label="Brightness" value={settings.colorControls.brightness} onChange={val => handleValueChange('colorControls', 'brightness', val)} min={0.1} max={2} step={0.05} />
             <ControlSlider label="Contrast" value={settings.colorControls.contrast} onChange={val => handleValueChange('colorControls', 'contrast', val)} min={0} max={2} step={0.05} />
             <ControlSlider label="Saturation" value={settings.colorControls.saturation} onChange={val => handleValueChange('colorControls', 'saturation', val)} min={0} max={2} step={0.05} />
-          </div>
-        )}
-      </div>
-
-      {/* CRT Effect */}
-      <div className="p-4 bg-gray-700/50 rounded-lg">
-        <label className="flex items-center justify-between cursor-pointer">
-          <span className="text-lg font-bold text-white">CRT Effect</span>
-          <input type="checkbox" checked={settings.crt.active} onChange={() => handleToggle('crt')} className="toggle-checkbox" />
-        </label>
-        {settings.crt.active && (
-          <div className="mt-4 space-y-3">
-            <ControlSlider label="Curvature" value={settings.crt.curvature} onChange={val => handleValueChange('crt', 'curvature', val)} min={0} max={1} step={0.05} />
-            <ControlSlider label="Glow" value={settings.crt.glowAmount} onChange={val => handleValueChange('crt', 'glowAmount', val)} min={0} max={5} step={0.1} />
-            <ControlSlider label="Line Thickness" value={settings.crt.lineThickness} onChange={val => handleValueChange('crt', 'lineThickness', val)} min={0.1} max={5} step={0.1} />
-            <ControlSlider label="Scanline Opacity" value={settings.crt.scanlineOpacity} onChange={val => handleValueChange('crt', 'scanlineOpacity', val)} min={0} max={1} step={0.01} />
-            <ControlSlider label="Vignette" value={settings.crt.vignette} onChange={val => handleValueChange('crt', 'vignette', val)} min={0} max={1} step={0.05} />
-             <label className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300">
-                <span>Animate Scanlines</span>
-                <input type="checkbox" checked={settings.crt.animateScanlines} onChange={() => handleSubToggle('crt', 'animateScanlines')} className="toggle-checkbox-sm" />
-            </label>
-            {settings.crt.animateScanlines && (
-              <ControlSlider label="Scanline Speed" value={settings.crt.scanlineSpeed} onChange={val => handleValueChange('crt', 'scanlineSpeed', val)} min={0.1} max={10} step={0.1} />
-            )}
           </div>
         )}
       </div>

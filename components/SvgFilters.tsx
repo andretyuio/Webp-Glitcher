@@ -119,17 +119,21 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
     const gAnim = getChannelShiftAnimateValues(filters.channelShift.gOffset, filters.channelShift.gAngle);
     const bAnim = getChannelShiftAnimateValues(filters.channelShift.bOffset, filters.channelShift.bAngle);
 
-    const noiseSeedValues = useMemo(() => {
-        return Array.from({length: 10}, () => Math.floor(Math.random() * 100)).join(';');
+    const animatedNoiseSeedValues = useMemo(() => {
+        return Array.from({length: 10}, () => Math.floor(Math.random() * 500)).join(';');
     }, []);
     
     const noiseBaseFrequency = useMemo(() => {
-        const { type, amount } = filters.noise;
+        const { type, scale } = filters.noise;
+        // A larger scale value should result in a larger, less frequent noise pattern (lower baseFrequency).
+        // The value is inverted to achieve this intuitive mapping.
+        const baseFreqValue = 0.5 / (scale || 1); // Avoid division by zero
         if (type === 'grain') {
-        return 0.5 + amount * 0.5;
+          // Grain needs a higher base frequency, so we add to a baseline.
+          return 0.5 + baseFreqValue * 0.5;
         }
-        return amount;
-    }, [filters.noise.type, filters.noise.amount]);
+        return baseFreqValue;
+    }, [filters.noise.type, filters.noise.scale]);
 
     const getSliceShiftDispMapMatrix = () => {
         if (filters.sliceShift.direction === 'horizontal') {
@@ -191,12 +195,13 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                     <feTurbulence 
                         type={filters.noise.type === 'grain' ? 'fractalNoise' : filters.noise.type} 
                         baseFrequency={String(noiseBaseFrequency)}
-                        numOctaves={filters.noise.octaves} 
-                        seed="0" 
+                        numOctaves="3" 
                         stitchTiles="stitch" 
                         result="turbulence"
                     >
-                    {filters.noise.animate && <animate attributeName="seed" values={noiseSeedValues} dur={`${0.5 / filters.noise.animationSpeed}s`} repeatCount="indefinite" />}
+                        {filters.noise.animate && (
+                            <animate attributeName="seed" values={animatedNoiseSeedValues} dur="0.2s" repeatCount="indefinite" />
+                        )}
                     </feTurbulence>
                     <feColorMatrix in="turbulence" type="saturate" values="0" result="monochromeNoise"/>
                     <feComponentTransfer in="monochromeNoise" result="adjustedNoise">
@@ -219,48 +224,6 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                     {filters.slitScan.animate && <animate attributeName="scale" values={getSlitScanAnimationValues()} dur={`${2 / filters.slitScan.animationSpeed}s`} repeatCount="indefinite" />}
                     </feDisplacementMap>
                     <feComposite in="wavy" in2="SourceGraphic" operator="in" />
-                </filter>
-
-                {/* CRT - COMPLETELY REBUILT */}
-                <filter id="crt" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
-                    {/* 1. CURVATURE - Correct centered barrel distortion */}
-                    <feImage href={`data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'><linearGradient id='g_h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#808080'/><stop offset='0.5' stop-color='black'/><stop offset='1' stop-color='#808080'/></linearGradient><rect width='1' height='1' fill='url(%23g_h)'/></svg>`)}`} x="0" y="0" width="100%" height="100%" result="h_grad" />
-                    <feImage href={`data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'><linearGradient id='g_v' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#808080'/><stop offset='0.5' stop-color='black'/><stop offset='1' stop-color='#808080'/></linearGradient><rect width='1' height='1' fill='url(%23g_v)'/></svg>`)}`} x="0" y="0" width="100%" height="100%" result="v_grad" />
-                    <feColorMatrix in="h_grad" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="h_grad_r"/>
-                    <feColorMatrix in="v_grad" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="v_grad_g"/>
-                    <feMerge result="distort_map">
-                        <feMergeNode in="h_grad_r"/>
-                        <feMergeNode in="v_grad_g"/>
-                    </feMerge>
-                    <feDisplacementMap in="SourceGraphic" in2="distort_map" scale={filters.crt.curvature * 100} xChannelSelector="R" yChannelSelector="G" result="curved" />
-
-                    {/* 2. GLOW */}
-                    <feGaussianBlur in="curved" stdDeviation={filters.crt.glowAmount} result="glow_blur" />
-                    <feBlend in="curved" in2="glow_blur" mode="screen" result="glowing" />
-
-                    {/* 3. SCANLINES - Rebuilt for visibility using turbulence */}
-                    <feTurbulence type="fractalNoise" baseFrequency={`0 ${filters.crt.lineThickness * 0.4}`} numOctaves="1" result="scanlineNoise"/>
-                    <feComponentTransfer in="scanlineNoise" result="sharpScanlines">
-                        <feFuncA type="discrete" tableValues={`0 ${filters.crt.scanlineOpacity} ${filters.crt.scanlineOpacity} 0`} />
-                    </feComponentTransfer>
-                    {filters.crt.animateScanlines && (
-                        <feTurbulence type="turbulence" baseFrequency="0 0.005" numOctaves="1" seed="0" result="v_shift">
-                            <animate attributeName="seed" values={noiseSeedValues} dur={`${0.1 / filters.crt.scanlineSpeed}s`} repeatCount="indefinite" />
-                        </feTurbulence>
-                    )}
-                    {filters.crt.animateScanlines ? (
-                        <feDisplacementMap in="sharpScanlines" in2="v_shift" scale="3" yChannelSelector="G" result="animated_scanlines"/>
-                    ) : (
-                        <feMerge result="animated_scanlines"><feMergeNode in="sharpScanlines"/></feMerge>
-                    )}
-                    <feComposite in="glowing" in2="animated_scanlines" operator="over" result="imageWithScanlines"/>
-
-                    {/* 4. VIGNETTE */}
-                    <feImage href={`data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'><defs><radialGradient id='g' cx='50%' cy='50%' r='55%'><stop offset='${(1 - filters.crt.vignette) * 100}%' stop-color='white'/><stop offset='100%' stop-color='black'/></radialGradient></defs><rect width='1' height='1' fill='url(%23g)'/></svg>`)}`} result="vignetteMask" width="100%" height="100%" />
-                    <feBlend in="imageWithScanlines" in2="vignetteMask" mode="multiply" result="finalEffect" />
-                    
-                    {/* 5. CLIP TO ORIGINAL BOUNDS */}
-                    <feComposite in="finalEffect" in2="SourceGraphic" operator="atop" />
                 </filter>
                 
                 {/* Pixelate */}
@@ -358,6 +321,62 @@ const SvgFilters: React.FC<SvgFiltersProps> = ({ filters }) => {
                         <feMergeNode in="shiftedOnly"/>
                     </feMerge>
                     <feComposite in="mergedSlices" in2="SourceGraphic" operator="in" />
+                </filter>
+
+                {/* CRT Effect */}
+                <filter id="crt" x="-20%" y="-20%" width="140%" height="140%">
+                    {/* Barrel Distortion */}
+                    <feTurbulence type="fractalNoise" baseFrequency="0.003" numOctaves="1" seed="1" result="distort_map" />
+                    <feDisplacementMap in="SourceGraphic" in2="distort_map" scale={filters.crt.barrelDistortion} xChannelSelector="R" yChannelSelector="G" result="distorted_image" />
+
+                    {/* --- Banding Effect --- */}
+                    {/* Base texture for the fuzzy bands */}
+                    <feTurbulence type="fractalNoise" baseFrequency="0.02 0.1" numOctaves="2" seed="5" result="static_bands" />
+                    {/* Animated vertical noise to make the bands drift/roll */}
+                    <feTurbulence type="fractalNoise" baseFrequency="0 0.05" numOctaves="2" seed="10" result="scrolling_map">
+                        {filters.crt.animate && (
+                            <animate attributeName="seed" from="10" to="110" dur={`${4 / filters.crt.animationSpeed}s`} repeatCount="indefinite" />
+                        )}
+                    </feTurbulence>
+                    {/* Displace the static texture with the animated noise */}
+                    <feDisplacementMap in="static_bands" in2="scrolling_map" scale={filters.crt.bandingDrift} xChannelSelector="R" yChannelSelector="G" result="scrolling_bands" />
+                    
+                    {/* --- Banding MASK --- */}
+                    {/* Generate vertical noise to define the bands' positions */}
+                    <feTurbulence type="turbulence" baseFrequency={`0 ${filters.crt.bandingDensity / 1000}`} numOctaves="1" seed="20" result="banding_mask_noise" />
+                    {/* Sharpen the noise into distinct bands using a high-contrast transfer */}
+                    <feComponentTransfer in="banding_mask_noise" result="banding_mask">
+                        <feFuncR type="linear" slope={filters.crt.bandingSharpness} intercept={0.5 - filters.crt.bandingSharpness / 2} />
+                        <feFuncG type="linear" slope={filters.crt.bandingSharpness} intercept={0.5 - filters.crt.bandingSharpness / 2} />
+                        <feFuncB type="linear" slope={filters.crt.bandingSharpness} intercept={0.5 - filters.crt.bandingSharpness / 2} />
+                    </feComponentTransfer>
+                    
+                    {/* Apply the mask to the scrolling bands effect */}
+                    <feComposite in="scrolling_bands" in2="banding_mask" operator="in" result="masked_scrolling_bands" />
+
+                    {/* Blend the final masked bands with the distorted image */}
+                    <feComponentTransfer in="masked_scrolling_bands" result="banding_alpha">
+                        <feFuncA type="linear" slope={filters.crt.bandingOpacity} />
+                    </feComponentTransfer>
+                    <feBlend in="distorted_image" in2="banding_alpha" mode="screen" result="image_with_bands" />
+
+                    {/* Scanlines */}
+                    <feTurbulence type="fractalNoise" baseFrequency="0 3.5" numOctaves="1" result="scanlines_noise" />
+                    <feComponentTransfer in="scanlines_noise" result="scanlines_alpha">
+                        <feFuncA type="linear" slope={filters.crt.scanlineOpacity} />
+                    </feComponentTransfer>
+                    <feBlend in="image_with_bands" in2="scanlines_alpha" mode="multiply" result="image_with_scanlines" />
+                    
+                    {/* Vignette */}
+                    <feMorphology in="SourceAlpha" operator="erode" radius={filters.crt.vignetteOpacity * 20} result="eroded_alpha" />
+                    <feGaussianBlur in="eroded_alpha" stdDeviation={filters.crt.vignetteOpacity * 30} result="vignette_mask" />
+                    <feComposite in="image_with_scanlines" in2="vignette_mask" operator="in" result="center_image" />
+                    <feFlood flood-color="black" result="black"/>
+                    <feComposite in="black" in2="vignette_mask" operator="out" result="vignette_edges" />
+                    <feMerge>
+                        <feMergeNode in="vignette_edges" />
+                        <feMergeNode in="center_image" />
+                    </feMerge>
                 </filter>
                 
                 {/* Image Effects */}

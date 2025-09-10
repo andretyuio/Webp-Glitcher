@@ -1,4 +1,3 @@
-
 export interface FilterSetting {
   active: boolean;
   [key: string]: any;
@@ -19,13 +18,11 @@ export interface ChannelShiftSettings extends FilterSetting {
 }
 
 export interface NoiseSettings extends FilterSetting {
-  amount: number;
+  scale: number;
   type: 'fractalNoise' | 'turbulence' | 'grain';
-  animate: boolean;
-  animationSpeed: number;
-  octaves: number;
   opacity: number;
   blendMode: 'overlay' | 'screen' | 'difference';
+  animate: boolean;
 }
 
 export interface SlitScanSettings extends FilterSetting {
@@ -37,16 +34,6 @@ export interface SlitScanSettings extends FilterSetting {
   animationType: 'pulse' | 'flicker' | 'sweep';
   animationMinAmount: number;
   animationMaxAmount: number;
-}
-
-export interface CrtSettings extends FilterSetting {
-    lineThickness: number;
-    scanlineOpacity: number;
-    vignette: number;
-    animateScanlines: boolean;
-    scanlineSpeed: number;
-    curvature: number;
-    glowAmount: number;
 }
 
 export interface PixelateSettings extends FilterSetting {
@@ -100,6 +87,18 @@ export interface SliceShiftSettings extends FilterSetting {
   animationMaxAmount: number;
 }
 
+export interface CRTSettings extends FilterSetting {
+  bandingOpacity: number;
+  scanlineOpacity: number;
+  barrelDistortion: number;
+  vignetteOpacity: number;
+  animate: boolean;
+  animationSpeed: number;
+  bandingDrift: number;
+  bandingDensity: number;
+  bandingSharpness: number;
+}
+
 export interface ImageEffectsSettings extends FilterSetting {
   type: 'none' | 'sepia' | 'grayscale' | 'invert';
   strength: number;
@@ -109,13 +108,13 @@ export interface FilterSettings {
   channelShift: ChannelShiftSettings;
   noise: NoiseSettings;
   slitScan: SlitScanSettings;
-  crt: CrtSettings;
   pixelate: PixelateSettings;
   hueRotate: HueRotateSettings;
   blur: BlurSettings;
   colorControls: ColorControlsSettings;
   jpegGlitch: JpegGlitchSettings;
   sliceShift: SliceShiftSettings;
+  crt: CRTSettings;
   imageEffects: ImageEffectsSettings;
 }
 
@@ -126,4 +125,22 @@ export type OverlayType = 'none' | 'hud' | 'cam' | 'vcr' | 'scope' | 'terminal';
 export interface TransformSettings {
   flipHorizontal: boolean;
   flipVertical: boolean;
+}
+
+export interface WebPFrame {
+    duration: number; // in milliseconds
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dispose: boolean;
+    blend: boolean;
+}
+
+export interface WebPData {
+    width: number;
+    height: number;
+    loopCount: number;
+    bgColor: number;
+    frames: WebPFrame[];
 }

@@ -9,6 +9,8 @@ interface ControlsPanelProps {
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   imageUrl: string | null;
   isRecording: boolean;
+  isPaused: boolean;
+  isAnimated: boolean;
   loadingStatus: LoadingStatus;
   analysisError: string | null;
   recordingError: string | null;
@@ -22,18 +24,20 @@ interface ControlsPanelProps {
   startRecording: () => void;
   stopRecording: () => void;
   resetAll: () => void;
+  handleDownloadFrame: () => void;
+  handleTogglePause: () => void;
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
     const { 
-        onFileChange, imageUrl, isRecording, loadingStatus, analysisError,
+        onFileChange, imageUrl, isRecording, isPaused, isAnimated, loadingStatus, analysisError,
         recordingError, handleRetry, overlay, setOverlay, filters, setFilters, transforms,
-        setTransforms, startRecording, stopRecording, resetAll
+        setTransforms, startRecording, stopRecording, resetAll, handleDownloadFrame, handleTogglePause
     } = props;
     
     const showAnalysisError = loadingStatus === 'error' && analysisError;
     const showLoadingMessage = loadingStatus === 'loading';
-    const disableRecording = loadingStatus !== 'ready' || !!recordingError;
+    const disableRecording = !isAnimated || loadingStatus !== 'ready' || !!recordingError;
 
     return (
         <div className="lg:col-span-1 bg-gray-800 rounded-lg shadow-2xl p-6 h-fit sticky top-8">
@@ -86,28 +90,53 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
                   />
                 </fieldset>
 
-                <div className="mt-6 space-y-4">
-                  {isRecording ? (
-                    <button
-                      onClick={stopRecording}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 animate-pulse"
-                      aria-label="Stop recording animation"
-                    >
-                      Recording...
-                    </button>
-                  ) : (
-                    <button
-                      onClick={startRecording}
-                      disabled={disableRecording}
-                      className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200"
-                      aria-label="Start recording and download animation"
-                    >
-                      Record & Download Video (.webm)
-                    </button>
+                <div className="mt-6 space-y-3">
+                  {isAnimated && (
+                    <>
+                      {isRecording ? (
+                        <button
+                          onClick={stopRecording}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 animate-pulse"
+                          aria-label="Stop recording animation"
+                        >
+                          Recording...
+                        </button>
+                      ) : (
+                        <button
+                          onClick={startRecording}
+                          disabled={disableRecording}
+                          className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200"
+                          aria-label="Start recording and download animation"
+                          title={!isAnimated ? "Video recording is only available for animated images." : ""}
+                        >
+                          Record & Download Video (.webm)
+                        </button>
+                      )}
+                      <p className="text-xs text-gray-500 text-center -mt-1">
+                        Records one full loop, then downloads.
+                      </p>
+                    </>
                   )}
-                  <p className="text-xs text-gray-500 text-center">
-                    The video will be recorded for one full loop and then download automatically.
-                  </p>
+                  
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handleDownloadFrame}
+                      disabled={isRecording}
+                      className={`bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 ${isAnimated ? 'flex-1' : 'w-full'}`}
+                    >
+                      Download Frame (.png)
+                    </button>
+                    {isAnimated && (
+                        <button
+                            onClick={handleTogglePause}
+                            disabled={isRecording}
+                            className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200"
+                        >
+                            {isPaused ? 'Play' : 'Pause'}
+                        </button>
+                    )}
+                  </div>
+                  
                   <button
                     onClick={resetAll}
                     disabled={isRecording}
@@ -133,11 +162,17 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
                             <p className="text-xs mt-1">{recordingError}</p>
                         </div>
                     )}
-                    {showLoadingMessage && !isRecording && (
-                        <div className="mt-4 p-3 rounded-lg bg-yellow-900/50 border border-yellow-700 text-yellow-300 text-center">
-                            <p className="font-bold text-sm">Analyzing File...</p>
-                            <p className="text-xs mt-1">Download will be enabled once analysis is complete.</p>
-                        </div>
+                    {(showLoadingMessage || (loadingStatus === 'ready' && !isAnimated)) && !isRecording && (
+                      <div className="mt-4 p-3 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-300 text-center">
+                          <p className="font-bold text-sm">
+                              {showLoadingMessage ? 'Analyzing File...' : 'Static Image Loaded'}
+                          </p>
+                          <p className="text-xs mt-1">
+                              {showLoadingMessage
+                                  ? 'Determining image properties...'
+                                  : 'Video recording is unavailable for static images.'}
+                          </p>
+                      </div>
                     )}
                 </div>
               </>

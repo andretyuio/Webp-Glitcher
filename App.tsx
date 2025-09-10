@@ -1,23 +1,26 @@
+
 import React, { useState, useCallback, useRef } from 'react';
-import { FilterSettings, OverlayType, TransformSettings, ImageEffectsSettings } from './types';
+import saveAs from 'file-saver';
+import { FilterSettings, OverlayType, TransformSettings, WebPData } from './types';
 import Header from './components/Header';
 import ImagePreview from './components/ImagePreview';
 import SvgFilters from './components/SvgFilters';
 import ControlsPanel from './components/ControlsPanel';
+import RecordingTutorial from './components/RecordingTutorial';
 import { useWebPAnalyzer } from './hooks/useWebPAnalyzer';
 import { useScreenRecorder } from './hooks/useScreenRecorder';
 
 const initialFilterSettings: FilterSettings = {
   channelShift: { active: false, rOffset: 2, gOffset: 0, bOffset: -2, rAngle: 0, gAngle: 0, bAngle: 0, animate: false, animationSpeed: 1, animationType: 'wave', animationMinAmount: 80, animationMaxAmount: 120 },
-  noise: { active: false, amount: 0.2, type: 'fractalNoise', animate: true, animationSpeed: 1, octaves: 3, opacity: 0.5, blendMode: 'overlay' },
+  noise: { active: false, scale: 2.5, type: 'fractalNoise', opacity: 0.5, blendMode: 'overlay', animate: true },
   slitScan: { active: false, amount: 15, direction: 'vertical', animationSpeed: 1, density: 10, animate: true, animationType: 'pulse', animationMinAmount: 80, animationMaxAmount: 120 },
-  crt: { active: false, lineThickness: 2, scanlineOpacity: 0.4, vignette: 0.3, animateScanlines: true, scanlineSpeed: 2, curvature: 0.2, glowAmount: 0.5 },
   pixelate: { active: false, size: 4, animate: false, animationSpeed: 1, type: 'blocky', animationMinAmount: 50, animationMaxAmount: 150, animationType: 'pulse' },
   hueRotate: { active: false, angle: 0 },
   blur: { active: false, type: 'gaussian', amountX: 0, amountY: 0, isLocked: true, amount: 5, angle: 45, animate: false, animationSpeed: 1, animationMinAmount: 0, animationMaxAmount: 10, animationType: 'pulse' },
   colorControls: { active: false, brightness: 1, contrast: 1, saturation: 1 },
   jpegGlitch: { active: false, blockSize: 8, amount: 20, iterations: 1 },
   sliceShift: { active: false, sliceHeight: 10, offsetAmount: 25, direction: 'horizontal', animate: false, animationSpeed: 1, animationType: 'pulse', animationMinAmount: 0, animationMaxAmount: 150 },
+  crt: { active: false, bandingOpacity: 0.2, scanlineOpacity: 0.15, barrelDistortion: 5, vignetteOpacity: 0.4, animate: true, animationSpeed: 1, bandingDrift: 50, bandingDensity: 8, bandingSharpness: 20 },
   imageEffects: { active: false, type: 'none', strength: 100 }
 };
 
@@ -41,24 +44,33 @@ function App() {
   const [filters, setFilters] = useState<FilterSettings>(initialFilterSettings);
   const [transforms, setTransforms] = useState<TransformSettings>(initialTransformSettings);
   const [overlay, setOverlay] = useState<OverlayType>('none');
+  const [isPaused, setIsPaused] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const animatedImageRef = useRef<HTMLImageElement>(null);
 
   const {
     loadingStatus, 
     errorMessage: analysisError, 
     videoDuration, 
     imageDimensions,
+    webpData,
     handleRetry,
   } = useWebPAnalyzer(currentFile);
+
+  const isAnimated = !!webpData && webpData.frames.length > 1;
 
   const {
       isRecording,
       recordingError,
+      isTutorialVisible,
       startRecording,
       stopRecording,
-  } = useScreenRecorder(previewRef, videoDuration);
+      proceedWithRecording,
+      cancelRecordingSetup,
+  } = useScreenRecorder(videoDuration);
 
-  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || file.type !== 'image/webp') {
       if (file) alert('Please upload a valid .webp file.');
@@ -66,21 +78,125 @@ function App() {
       setImageUrl(null);
       return;
     }
-
-    if (imageUrl) {
-      URL.revokeObjectURL(imageUrl);
-    }
-    
-    const objectUrl = URL.createObjectURL(file);
-    setImageUrl(objectUrl);
     setCurrentFile(file);
-  }, [imageUrl]);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        setImageUrl(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    setIsPaused(false);
+  }, []);
 
   const resetAll = useCallback(() => {
     setFilters(initialFilterSettings);
     setTransforms(initialTransformSettings);
     setOverlay('none');
+    setIsPaused(false);
   }, []);
+
+  const handleStartRecording = useCallback(() => {
+    const svgFiltersHtml = document.getElementById('svg-filter-defs')?.innerHTML;
+    const previewContainer = previewRef.current;
+    
+    if (!previewContainer || !imageUrl || typeof svgFiltersHtml === 'undefined') {
+        console.error("Could not gather all necessary data for recording.");
+        alert("An error occurred preparing the recording. Please try again.");
+        return;
+    }
+
+    const computedStyle = window.getComputedStyle(previewContainer);
+    
+    startRecording({
+        imageUrl,
+        overlayUrl: overlays[overlay],
+        svgFiltersHtml,
+        filterStyle: computedStyle.filter,
+        transformStyle: computedStyle.transform,
+    });
+  }, [imageUrl, overlay, startRecording]);
+
+  const captureCurrentFrame = useCallback((onCapture: (dataUrl: string) => void) => {
+    if (!imageDimensions) {
+      alert("Please upload an image first.");
+      return;
+    }
+    const svgDefsHtml = document.getElementById('svg-filter-defs')?.innerHTML;
+    if (!svgDefsHtml) {
+      alert("Could not find filter definitions to apply.");
+      return;
+    }
+
+    // Determine the source element: the paused canvas or the live animating image
+    const sourceElement = isPaused ? previewCanvasRef.current : animatedImageRef.current;
+    if (!sourceElement) {
+        alert("Image source for capture not found.");
+        return;
+    }
+
+    // Draw the source element to a temporary canvas to get a static image data URL
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = imageDimensions.width;
+    tempCanvas.height = imageDimensions.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) {
+        alert("Could not create a canvas context for capture.");
+        return;
+    }
+    tempCtx.drawImage(sourceElement, 0, 0, imageDimensions.width, imageDimensions.height);
+    const sourceImageHref = tempCanvas.toDataURL();
+    
+    const activeFilterUrls = Object.entries(filters)
+        .filter(([, settings]) => settings.active && !(settings.type === 'none'))
+        .map(([key]) => `url(#${key})`)
+        .join(' ');
+
+    let scaleX = 1, scaleY = 1, translateX = 0, translateY = 0;
+    if (transforms.flipHorizontal) { scaleX = -1; translateX = -imageDimensions.width; }
+    if (transforms.flipVertical) { scaleY = -1; translateY = -imageDimensions.height; }
+    const transformValue = `translate(${translateX} ${translateY}) scale(${scaleX} ${scaleY})`;
+    const finalTransform = (transforms.flipHorizontal || transforms.flipVertical) ? `transform="${transformValue}"` : '';
+
+    const svgString = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${imageDimensions.width}" height="${imageDimensions.height}">
+            <defs>${svgDefsHtml}</defs>
+            <g filter="${activeFilterUrls}" ${finalTransform}>
+                <image href="${sourceImageHref}" x="0" y="0" width="${imageDimensions.width}" height="${imageDimensions.height}" />
+                ${overlay !== 'none' && !isPaused ? `<image href="${overlays[overlay]}" x="0" y="0" width="100%" height="100%" />` : ''}
+            </g>
+        </svg>`;
+    
+    const blob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    
+    const img = new Image();
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = imageDimensions.width;
+        canvas.height = imageDimensions.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.drawImage(img, 0, 0, imageDimensions.width, imageDimensions.height);
+            const pngDataUrl = canvas.toDataURL('image/png');
+            onCapture(pngDataUrl);
+        }
+        URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+         alert("Could not capture frame due to an image rendering error.");
+         URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [imageDimensions, filters, transforms, overlay, overlays, isPaused]);
+
+  const handleTogglePause = useCallback(() => {
+    setIsPaused(isPaused => !isPaused);
+  }, []);
+
+  const handleDownloadFrame = useCallback(() => {
+    captureCurrentFrame((dataUrl) => {
+      saveAs(dataUrl, 'glitched-frame.png');
+    });
+  }, [captureCurrentFrame]);
   
   const filterUrls = Object.entries(filters)
     .filter(([, settings]) => settings.active && !(settings.type === 'none'))
@@ -89,6 +205,12 @@ function App() {
   
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans">
+      {isTutorialVisible && (
+        <RecordingTutorial 
+            onConfirm={proceedWithRecording}
+            onCancel={cancelRecordingSetup}
+        />
+      )}
       <Header />
       <SvgFilters filters={filters} />
       
@@ -98,6 +220,8 @@ function App() {
             onFileChange={handleFileChange}
             imageUrl={imageUrl}
             isRecording={isRecording}
+            isPaused={isPaused}
+            isAnimated={isAnimated}
             loadingStatus={loadingStatus}
             analysisError={analysisError}
             recordingError={recordingError}
@@ -108,20 +232,25 @@ function App() {
             setFilters={setFilters}
             transforms={transforms}
             setTransforms={setTransforms}
-            startRecording={startRecording}
+            startRecording={handleStartRecording}
             stopRecording={stopRecording}
             resetAll={resetAll}
+            handleDownloadFrame={handleDownloadFrame}
+            handleTogglePause={handleTogglePause}
           />
           <div className="lg:col-span-2">
             <ImagePreview 
                 ref={previewRef}
-                imageUrl={imageUrl} 
+                canvasRef={previewCanvasRef}
+                animatedImageRef={animatedImageRef}
+                imageUrl={imageUrl}
                 filterStyle={{ filter: filterUrls }} 
-                isCurved={filters.crt.active && filters.crt.curvature > 0}
                 overlayUrl={overlays[overlay]}
                 flipHorizontal={transforms.flipHorizontal}
                 flipVertical={transforms.flipVertical}
                 imageDimensions={imageDimensions}
+                isPaused={isPaused}
+                isAnimated={isAnimated}
             />
           </div>
         </div>
