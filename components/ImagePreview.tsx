@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 
 interface ImagePreviewProps {
   imageUrl: string | null;
@@ -7,32 +7,43 @@ interface ImagePreviewProps {
   overlayUrl: string | null;
   flipHorizontal: boolean;
   flipVertical: boolean;
+  imageDimensions: { width: number; height: number; } | null;
 }
 
-const ImagePreview: React.FC<ImagePreviewProps> = ({ imageUrl, filterStyle, isCurved, overlayUrl, flipHorizontal, flipVertical }) => {
+const ImagePreview = forwardRef<HTMLDivElement, ImagePreviewProps>(({ imageUrl, filterStyle, isCurved, overlayUrl, flipHorizontal, flipVertical, imageDimensions }, ref) => {
   
   const transform = [
     flipHorizontal ? 'scaleX(-1)' : '',
     flipVertical ? 'scaleY(-1)' : ''
   ].join(' ').trim();
 
+  const aspectRatio = imageDimensions 
+    ? `${imageDimensions.width} / ${imageDimensions.height}` 
+    : '1 / 1';
+
   return (
     <div className="bg-gray-800 rounded-lg shadow-2xl p-4 sticky top-8">
-      <div className={`relative bg-black/50 rounded-md grid place-items-center border-2 border-gray-700 ${isCurved ? 'overflow-hidden' : ''}`}>
+      <div 
+        className={`relative bg-black/50 rounded-md grid place-items-center border-2 border-gray-700 ${isCurved ? 'overflow-hidden' : ''}`}
+        style={{ aspectRatio }}
+      >
         {imageUrl ? (
-            <div className="relative inline-block max-w-full max-h-full" style={{ transform, lineHeight: 0 /* Prevents extra space below inline-block image */ }}>
+            <div 
+              ref={ref}
+              className="grid place-items-center [grid-template-areas:'preview'] max-w-full max-h-full" 
+              style={{ transform, ...filterStyle }}
+            >
               <img
                 id="preview-image"
                 src={imageUrl}
                 alt="Corrupted preview"
-                className="max-w-full max-h-full object-contain"
-                style={filterStyle}
+                className="[grid-area:preview] max-w-full max-h-full object-contain"
               />
               {overlayUrl && (
                 <img
                   src={overlayUrl}
                   alt="Effect overlay"
-                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  className="[grid-area:preview] w-full h-full object-fill pointer-events-none"
                 />
               )}
             </div>
@@ -45,6 +56,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ imageUrl, filterStyle, isCu
       </div>
     </div>
   );
-};
+});
 
 export default ImagePreview;

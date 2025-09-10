@@ -1,3 +1,4 @@
+
 export interface FilterSetting {
   active: boolean;
   [key: string]: any;
@@ -7,12 +8,14 @@ export interface ChannelShiftSettings extends FilterSetting {
   rOffset: number;
   gOffset: number;
   bOffset: number;
-  rDirection: 'horizontal' | 'vertical' | 'both';
-  gDirection: 'horizontal' | 'vertical' | 'both';
-  bDirection: 'horizontal' | 'vertical' | 'both';
-  rSpeed: number;
-  gSpeed: number;
-  bSpeed: number;
+  rAngle: number;
+  gAngle: number;
+  bAngle: number;
+  animate: boolean;
+  animationSpeed: number;
+  animationType: 'pulse' | 'flicker' | 'sweep' | 'wave';
+  animationMinAmount: number;
+  animationMaxAmount: number;
 }
 
 export interface NoiseSettings extends FilterSetting {
@@ -22,6 +25,7 @@ export interface NoiseSettings extends FilterSetting {
   animationSpeed: number;
   octaves: number;
   opacity: number;
+  blendMode: 'overlay' | 'screen' | 'difference';
 }
 
 export interface SlitScanSettings extends FilterSetting {
@@ -30,6 +34,9 @@ export interface SlitScanSettings extends FilterSetting {
   animationSpeed: number;
   density: number;
   animate: boolean;
+  animationType: 'pulse' | 'flicker' | 'sweep';
+  animationMinAmount: number;
+  animationMaxAmount: number;
 }
 
 export interface CrtSettings extends FilterSetting {
@@ -46,15 +53,14 @@ export interface PixelateSettings extends FilterSetting {
     size: number;
     animate: boolean;
     animationSpeed: number;
-    type: 'blocky' | 'smooth' | 'crystal';
-    animationMinSize: number;
-    animationMaxSize: number;
+    type: 'blocky' | 'crystal';
+    animationMinAmount: number;
+    animationMaxAmount: number;
+    animationType: 'pulse' | 'flicker' | 'sweep';
 }
 
 export interface HueRotateSettings extends FilterSetting {
     angle: number;
-    animate: boolean;
-    speed: number;
 }
 
 export interface BlurSettings extends FilterSetting {
@@ -89,7 +95,9 @@ export interface SliceShiftSettings extends FilterSetting {
   direction: 'horizontal' | 'vertical';
   animate: boolean;
   animationSpeed: number;
-  animationType: 'scroll' | 'random' | 'pulse';
+  animationType: 'pulse' | 'flicker' | 'sweep';
+  animationMinAmount: number;
+  animationMaxAmount: number;
 }
 
 export interface ImageEffectsSettings extends FilterSetting {
@@ -113,17 +121,9 @@ export interface FilterSettings {
 
 export type FilterKey = keyof FilterSettings;
 
-export type OverlayType = 'none' | 'hud' | 'cam' | 'vintage';
+export type OverlayType = 'none' | 'hud' | 'cam' | 'vcr' | 'scope' | 'terminal';
 
 export interface TransformSettings {
   flipHorizontal: boolean;
   flipVertical: boolean;
-  reverse: boolean;
 }
-
-export type TestStatus = 'passing' | 'failing' | 'untested';
-export interface TestResult {
-  status: TestStatus;
-  reason?: string;
-}
-export type TestResults = Record<FilterKey, TestResult>;

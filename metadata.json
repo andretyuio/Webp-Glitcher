@@ -1,5 +1,7 @@
 {
   "name": "Animated WebP Glitcher",
   "description": "An interactive tool to apply dynamic, corrupting-like filters to user-uploaded animated WebP files. Experiment with various glitch effects in real-time.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "display-capture"
+  ]
 }
